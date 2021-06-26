@@ -1,0 +1,64 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<TargetFramework>net5.0</TargetFramework>
+		<RootNamespace>TeamHitori.Mulplay.Container.Web</RootNamespace>
+		<DockerComposeProjectPath>..\docker-compose.dcproj</DockerComposeProjectPath>
+		<UserSecretsId>24676eb2-a307-4585-8976-70ee8968b21e</UserSecretsId>
+		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+		<ContainerDevelopmentMode>Regular</ContainerDevelopmentMode>
+		<AssemblyName>TeamHitori.Mulplay.Container.Web</AssemblyName>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Remove="node\**" />
+	  <Compile Remove="wwwroot\assets\**" />
+	  <Content Remove="node\**" />
+	  <Content Remove="wwwroot\assets\**" />
+	  <EmbeddedResource Remove="node\**" />
+	  <EmbeddedResource Remove="wwwroot\assets\**" />
+	  <None Remove="node\**" />
+	  <None Remove="wwwroot\assets\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="AspNetCore.Proxy" Version="4.2.0" />
+		<PackageReference Include="Microsoft.Azure.SignalR" Version="1.8.1" />
+		<PackageReference Include="System.Reactive" Version="5.0.0" />
+		<PackageReference Include="Google.Protobuf" Version="3.16.0" />
+		<PackageReference Include="Grpc.Net.Client" Version="2.37.0" />
+		<PackageReference Include="Grpc.Tools" Version="2.37.1">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.10.9" />
+		<PackageReference Include="UA.loops.shared.storage" Version="1.0.0.1" />
+	</ItemGroup>
+	
+	
+	<ItemGroup>
+		<Protobuf Include="Protos\gameService.proto" GrpcServices="Client" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Protobuf Include="Protos\gameService.proto" GrpcServices="Client" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="wwwroot\" />
+	</ItemGroup>
+
+	<!-- <ItemGroup>
+	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\editor\editor.api.d.ts" />
+	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\css\fillers\monaco-editor-core.d.ts" />
+	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\css\monaco.contribution.d.ts" />
+	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\html\fillers\monaco-editor-core.d.ts" />
+	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\html\monaco.contribution.d.ts" />
+	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\json\fillers\monaco-editor-core.d.ts" />
+	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\json\monaco.contribution.d.ts" />
+	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\typescript\fillers\monaco-editor-core.d.ts" />
+	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\typescript\monaco.contribution.d.ts" />
+	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\monaco.d.ts" />
+	</ItemGroup> -->
+
+</Project>
