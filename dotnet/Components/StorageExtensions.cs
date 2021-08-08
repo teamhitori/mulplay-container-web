@@ -7,7 +7,8 @@ using Polly;
 using StackExchange.Redis;
 using System;
 using System.Linq;
-using UA.loops.shared.storage;
+using TeamHitori.Mulplay.shared.storage;
+
 
 namespace TeamHitori.Mulplay.Container.Web.Components
 {
@@ -61,18 +62,18 @@ namespace TeamHitori.Mulplay.Container.Web.Components
                 .ToDictionary(s => s[0], s => s[1]);
             var sharedKeyCred = new StorageSharedKeyCredential(blobConnDict["AccountName"], blobConnDict["AccountKey"]);
 
-            Random jitterer = new Random();
-            var policy = Policy
-                .Handle<Exception>()
-                .WaitAndRetry(6, (retryAttempt, timespan) =>
-                {
-                    return TimeSpan.FromSeconds(Math.Pow(2, retryAttempt))
-                              + TimeSpan.FromMilliseconds(jitterer.Next(0, 100));
-                }, (ex, timespan, retryCount, retryContext) =>
-                {
-                    object methodThatRaisedException = retryContext["methodName"];
-                    log.LogError(ex, $"{ methodThatRaisedException }, retry: {retryCount}, timespan: {timespan}");
-                });
+            //Random jitterer = new Random();
+            //var policy = Policy
+            //    .Handle<Exception>()
+            //    .WaitAndRetry(6, (retryAttempt, timespan) =>
+            //    {
+            //        return TimeSpan.FromSeconds(Math.Pow(2, retryAttempt))
+            //                  + TimeSpan.FromMilliseconds(jitterer.Next(0, 100));
+            //    }, (ex, timespan, retryCount, retryContext) =>
+            //    {
+            //        object methodThatRaisedException = retryContext["methodName"];
+            //        log.LogError(ex, $"{ methodThatRaisedException }, retry: {retryCount}, timespan: {timespan}");
+            //    });
 
             var repository = new DocumentDBRepository(
                 endpoint,
@@ -91,7 +92,7 @@ namespace TeamHitori.Mulplay.Container.Web.Components
         public static Storage ToUserStorage(this IStorageConfig storageConfig, HttpContext httpContext)
         {
             var asUserId = httpContext.User.Claims.FirstOrDefault(claim =>
-                    claim.Type == "azp"
+                    claim.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier"
                 )?.Value ??
                 "1111-1111-1111-1111-1111";
 

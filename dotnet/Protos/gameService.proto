@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-option csharp_namespace = "GrpcConsole";
+option csharp_namespace = "TeamHitori.Mulplay.Shared.Poco";
 
-package loops;
+package Mulplay;
 
 // The service definition.
 service GameService {
@@ -11,6 +11,7 @@ service GameService {
   rpc startGame (ConnectedUserDocument) returns (stream Document);
   rpc startMetrics (ConnectedUserDocument) returns (stream ConnectedUserDocument);
   rpc stepGame (ConnectedUserDocument) returns (Document);
+  rpc restartGame (ConnectedUserDocument) returns (Document);
   rpc destroyGame (Document) returns (Document);
   rpc queueNewUser (ConnectedUserDocument) returns (ConnectedUserDocument);
   rpc exitUser (ConnectedUserDocument) returns (ConnectedUserDocument);
@@ -19,9 +20,11 @@ service GameService {
 
 message Document {
 	string content = 1;
+	string gamePrimaryName = 2;
 }
 
 message ConnectedUserDocument {
 	string content = 1;
 	string connectionId = 2;
+	string gamePrimaryName = 3;
 }

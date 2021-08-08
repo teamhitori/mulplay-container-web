@@ -8,6 +8,7 @@
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 		<ContainerDevelopmentMode>Regular</ContainerDevelopmentMode>
 		<AssemblyName>TeamHitori.Mulplay.Container.Web</AssemblyName>
+		<ApplicationInsightsResourceId>/subscriptions/97e50e55-1fb5-4b57-9990-9205908c8640/resourceGroups/teamhitori-mulplay-dev/providers/microsoft.insights/components/teamhitori-mulplay-dev-insights</ApplicationInsightsResourceId>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -23,7 +24,10 @@
 
 	<ItemGroup>
 		<PackageReference Include="AspNetCore.Proxy" Version="4.2.0" />
+		<PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.15.0" />
 		<PackageReference Include="Microsoft.Azure.SignalR" Version="1.8.1" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="1.14.0" />
+    <PackageReference Include="Microsoft.Identity.Web.UI" Version="1.14.0" />
 		<PackageReference Include="System.Reactive" Version="5.0.0" />
 		<PackageReference Include="Google.Protobuf" Version="3.16.0" />
 		<PackageReference Include="Grpc.Net.Client" Version="2.37.0" />
@@ -32,33 +36,32 @@
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.10.9" />
-		<PackageReference Include="UA.loops.shared.storage" Version="1.0.0.1" />
+		<PackageReference Include="TeamHitori.Mulplay.Shared.Storage" Version="1.0.0.10" />
 	</ItemGroup>
 	
-	
-	<ItemGroup>
-		<Protobuf Include="Protos\gameService.proto" GrpcServices="Client" />
-	</ItemGroup>
 
 	<ItemGroup>
 	  <Protobuf Include="Protos\gameService.proto" GrpcServices="Client" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="wwwroot\" />
+	  <Folder Include="ViewModels\" />
 	</ItemGroup>
 
-	<!-- <ItemGroup>
-	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\editor\editor.api.d.ts" />
-	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\css\fillers\monaco-editor-core.d.ts" />
-	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\css\monaco.contribution.d.ts" />
-	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\html\fillers\monaco-editor-core.d.ts" />
-	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\html\monaco.contribution.d.ts" />
-	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\json\fillers\monaco-editor-core.d.ts" />
-	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\json\monaco.contribution.d.ts" />
-	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\typescript\fillers\monaco-editor-core.d.ts" />
-	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\esm\vs\language\typescript\monaco.contribution.d.ts" />
-	  <TypeScriptCompile Include="wwwroot\assets\monaco-editor\monaco.d.ts" />
-	</ItemGroup> -->
+	<!--<ItemGroup>
+	  <ProjectReference Include="..\..\..\..\theirs\microsoft\microsoft-identity-web\src\Microsoft.Identity.Web.UI\Microsoft.Identity.Web.UI.csproj" />
+	  <ProjectReference Include="..\..\..\..\theirs\microsoft\microsoft-identity-web\src\Microsoft.Identity.Web\Microsoft.Identity.Web.csproj" />
+	</ItemGroup>
 
+	<ItemGroup>
+	  <Reference Include="Microsoft.AspNetCore.Authentication">
+	    <HintPath>..\..\..\..\theirs\microsoft\aspnetcore\artifacts\bin\Microsoft.AspNetCore.Authentication\Debug\net5.0\Microsoft.AspNetCore.Authentication.dll</HintPath>
+	  </Reference>
+	  <Reference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect">
+	    <HintPath>..\..\..\..\theirs\microsoft\aspnetcore\artifacts\bin\Microsoft.AspNetCore.Authentication.OpenIdConnect\Debug\net5.0\Microsoft.AspNetCore.Authentication.OpenIdConnect.dll</HintPath>
+	  </Reference>
+	  <Reference Include="Microsoft.AspNetCore.Mvc.Core">
+	    <HintPath>..\..\..\..\theirs\microsoft\aspnetcore\artifacts\bin\Microsoft.AspNetCore.Mvc.Core\Debug\net5.0\Microsoft.AspNetCore.Mvc.Core.dll</HintPath>
+	  </Reference>
+	</ItemGroup>-->
 </Project>

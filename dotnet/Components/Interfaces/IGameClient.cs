@@ -14,5 +14,6 @@ namespace TeamHitori.Mulplay.Container.Web.Components.Interfaces
         Task OnMetrics(string content);
         Task OnGameEnd(string content);
         Task OnStep(string content);
+        Task OnNotifyReload();
     }
 }
