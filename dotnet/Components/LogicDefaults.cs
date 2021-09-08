@@ -8,8 +8,8 @@ namespace TeamHitori.Mulplay.Container.Web.Components
     public static class LogicDefaults
     {
 
-        public const string FrontEndLogic = @"
-// engine: BABYLON.Engine
+        public const string FrontendLogic =
+@"// engine: BABYLON.Engine
 // canvas: HTMLCustomElement
 // This creates a basic Babylon Scene object (non-mesh)
 var scene = new BABYLON.Scene(engine);
@@ -38,62 +38,62 @@ sphere.position.y = 1;
 // Our built-in 'ground' shape.
 var ground = BABYLON.MeshBuilder.CreateGround(`ground`, {width: 6, height: 6}, scene);
 
-gameLoopApi.onGameState((state) => {
-	console.log(`From onGameState`, state);
+frontendApi.enterGame();
+
+frontendApi.onGameLoop((state) => {
+	console.log(`From onGameLoop`, state);
 });
 
-gameLoopApi.onStopState((state) => {
-    console.log(`From onStopState`, state);
+frontendApi.onGameStop((state) => {
+    console.log(`From onGameStop`, state);
 });
 
-gameLoopApi.onUserEnterState((state) => {
-    console.log(`From onUserEnterState`, state);
-});
-
-gameLoopApi.onUserExitState((state) => {
-    console.log(`From onUserExitState`, state);
-});
-
-gameLoopApi.onUserState((state) => {
-    console.log(`From onUserState`, state);
+frontendApi.onUserEvent((state) => {
+    console.log(`From onUserEvent`, state);
 });
 
 
-return scene;
+engine.runRenderLoop(() => {
+    scene.render();
+});
 ";
 
-        public const string UserEnterLogic = @"
-// on New User Logic
-// scene
-// gameState
-// eventData
+        public const string BackendLogic =
+@"//var intervalMs = gameConfig.intervalMs
+//var fillScreen = gameConfig.fillScreen
+//var screenRatio = gameConfig.screenRatio
+//var sphere = new BABYLON.MeshBuilder.CreateSphere(`ball`, { diameter: 100, segments: 32 }, scene);
+
+logger.log(`On Game Init`);
+
+var gameState = {}
+
+backendApi.onUserEvent((userPosition, state) => {
+    logger.log(`From onUserEvent, Player-${userPosition}`);
+});
+
+backendApi.onGameLoop(() => {
+    logger.log(`From onGameLoop`);
+	backendApi.pushGameState(gameState);
+});
+
+backendApi.onUserEnter(userPosition => {
+    logger.log(`From onUserEnter, Player-${userPosition}`);
+	backendApi.pushUserState(userPosition, `Hello Player-${userPosition}`);
+});
+
+backendApi.onUserExit(userPosition => {
+    logger.log(`From onUserExit`);
+});
+
+backendApi.onGameStop(() => {
+    logger.log(`From onGameStop`);
+});
+
+backendApi.onGameStart(() => {
+    logger.log(`From onGameStart`);
+});
   ";
-
-        public const string UserExitLogic = @"
-// on New User Logic
-// scene
-// gameState
-// eventData
-  ";
-
-        public const string StartLogic = @"
-// on start logic
-// scene
-// gameState
- ";
-
-        public const string GameLoopLogic = @"
-// on step logic
-// scene
-// gameState
-";
-
-        public const string UserEventLogic = @"
-// on user event logic
-// scene
-// gameState
-// eventData";
-
 
     }
 }

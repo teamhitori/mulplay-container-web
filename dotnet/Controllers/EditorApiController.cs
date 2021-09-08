@@ -47,21 +47,24 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
         {
             try
             {
+                // To lower
+                var userName = User.Identity.Name.ToLower();
+                gameName = gameName.ToLower();
+
                 var storage = _storageConfig.ToUserStorage(HttpContext);
+                var storagePublish = _storageConfig.ToUserStorage($"{userName}:{gameName}");
 
                 storage.LogDebug("Game Start Called");
 
-                var gameDefinition = await storage.GetLatestGameDefinition(gameName);
+                var gameDefinition = await GameDefinitionExtensions.GetLatest(storage, storagePublish, gameName);
 
                 var gamePrimaryName = Guid.NewGuid().ToString();
 
-                var gameInstance = new GameInstance(gameName, gamePrimaryName, DateTime.Now.ToString("yyyy/MM/dd HH:mm:ssZ"));
+                var gameInstance = new GameInstance($"debug:{userName}:{gameName}", gamePrimaryName, DateTime.Now.ToString("yyyy/MM/dd HH:mm:ssZ"), false, true);
 
                 await _gameContainer.CreateGame(gameInstance, gameDefinition);
 
-                //HttpContext.Session.SetObj(gamePrimaryName, gameInstance);
-
-                var res = gamePrimaryName.ToJDoc().content; ;
+                var res = gamePrimaryName.ToJDoc().content;
 
                 return gameInstance;
             }
@@ -72,8 +75,8 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
             }
         }
 
-        [HttpPost("upsert-config")]
-        public async Task<bool> UpsertConfig([FromBody] GameConfig gameConfig)
+        [HttpPost("upsert-config/{gameName}")]
+        public async Task<bool> UpsertConfig(string gameName, [FromBody] GameConfig gameConfig)
         {
             var storage = _storageConfig.ToUserStorage(HttpContext);
 
@@ -81,7 +84,8 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
 
             try
             {
-                await storage.Upsert(gameConfig, primaryNameIN: gameConfig.gameName);
+                // primaryNameIn - case insensitive
+                await storage.Upsert(gameConfig, primaryNameIN: gameName);
 
 
                 return true;
@@ -103,6 +107,7 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
 
             try
             {
+                // primaryNameIn - case insensitive
                 await storage.Upsert(gameLogic, primaryNameIN: $"{gameLogic.gameName}:{gameLogic.logicType}");
 
                 return true;
@@ -118,11 +123,14 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
         [HttpGet("get-active/{gameName}")]
         public IEnumerable<GameInstance> getActive(string gameName)
         {
+            var userName = User.Identity.Name.ToLower();
+            gameName = gameName.ToLower();
+
             var gameInstances = _gameContainer.ActiveGameInstances;
 
             foreach (var item in gameInstances)
             {
-                if(item.gameName == gameName)
+                if(item.gameName == $"debug:{userName}:{gameName}")
                 {
                     yield return item;
                 }
@@ -136,19 +144,24 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
 
             storage.LogDebug("Game Get All Called");
 
-            var gameConfigs = await storage.FindAllByType<GameConfig>();
+            var gameDefs = await storage.FindAllByType<GameConfig>();
 
-            return gameConfigs.Select(x => x.GetObject().gameName);
+            return gameDefs.Select(x => x.primaryName);
         }
 
         [HttpGet("get-definition/{gameName}")]
         public async Task<GameDefinition> getDefinition(string gameName)
         {
+            // To lower
+            var userName = User.Identity.Name.ToLower();
+            gameName = gameName.ToLower();
+
             var storage = _storageConfig.ToUserStorage(HttpContext);
+            var storagePublish = _storageConfig.ToUserStorage($"{userName}:{gameName}");
 
             storage.LogDebug("Game Get Called");
 
-            var gameDefinition = await storage.GetLatestGameDefinition(gameName);
+            var gameDefinition = await GameDefinitionExtensions.GetLatest(storage, storagePublish, gameName);
 
             return gameDefinition;
         }
@@ -183,41 +196,44 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
         [HttpGet("publish/{gameName}")]
         public async Task<bool> Publish(string gameName)
         {
+            // To lower
+            var userName = User.Identity.Name.ToLower();
+            gameName = gameName.ToLower();
+
             var storage = _storageConfig.ToUserStorage(HttpContext);
+            var storagePublish = _storageConfig.ToUserStorage($"{userName}:{gameName}");
 
             storage.LogDebug("Game Get Called");
 
-            var gameDefinition = await storage.GetLatestGameDefinition(gameName);
+            var gameDefinition = await GameDefinitionExtensions.GetLatest(storage, storagePublish, gameName);
 
-            var userName = User.Identity.Name;
 
             var publishProfile = new PublishProfile(userName, "0.0.0.0", DateTime.Now, gameDefinition);
-
-            var storagePublish = _storageConfig.ToUserStorage($"{userName}/{gameName}");
 
             await storagePublish.Upsert(publishProfile, true);
 
             return true;
         }
 
-        [HttpGet("is-published/{gameName}")]
-        public async Task<bool> isPublish(string gameName)
+        //[HttpGet("is-published/{gameName}")]
+        //public async Task<bool> isPublished(string gameName)
+        //{
+        //    var userName = User.Identity.Name.ToLower();
+        //    gameName = gameName.ToLower();
+
+        //    var storagePublish = _storageConfig.ToUserStorage($"{userName}:{gameName}");
+
+        //    var doc = await storagePublish.GetSingleton<PublishProfile>();
+
+        //    return doc != null;
+        //}
+
+        [HttpGet("published-url/{gameName}")]
+        public string PublishedUrl(string gameName)
         {
-            //var storage = _storageConfig.ToUserStorage(HttpContext);
-
-            //storage.LogDebug("Game Get Called");
-
-            //var gameDefinition = await storage.GetLatestGameDefinition(gameName);
-
             var userName = User.Identity.Name;
 
-            //var publishProfile = new PublishProfile(userName, "0.0.0.0", DateTime.Now, gameDefinition);
-
-            var storagePublish = _storageConfig.ToUserStorage($"{userName}/{gameName}");
-
-            var doc = await storagePublish.GetSingleton<PublishProfile>();
-
-            return doc != null;
+            return $"/{userName}/{gameName}".ToJDoc().content;
         }
     }
 }

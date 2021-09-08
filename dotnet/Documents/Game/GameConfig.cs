@@ -2,7 +2,8 @@
 namespace TeamHitori.Mulplay.Container.Web.Documents.Game
 {
     public record GameConfig(
-        string gameName,
-        double intervalMs
+        double? intervalMs = 100,
+        bool fillScreen = false,
+        double screenRatio = 16 / 9
         );
 }

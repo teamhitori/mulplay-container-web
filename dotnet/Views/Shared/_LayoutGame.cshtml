@@ -1,0 +1,30 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base href="/">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Team Hitori</title>
+    @*<link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" />*@
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body class="mat-typography">
+    <main class="h-100" role="main">
+        @RenderBody()
+    </main>
+
+    <script type="text/javascript" src="@Configuration["static_url"]/runtime.js"></script>
+    <script type="text/javascript" src="@Configuration["static_url"]/polyfills.js"></script>
+    <script type="text/javascript" src="@Configuration["static_url"]/main.js"></script>
+    <link rel="stylesheet" href="@Configuration["static_url"]/styles.css" />
+
+    <environment include="Development">
+        @*<link rel="stylesheet" href="@Configuration["static_url"]/styles.css" />*@
+        <script type="text/javascript" src="@Configuration["static_url"]/vendor.js"></script>
+        <script type="text/javascript" src="@Configuration["static_url"]/styles.js"></script>
+    </environment>
+
+</body>
+</html>

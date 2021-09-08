@@ -41,5 +41,11 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
             return View();
         }
 
+        [HttpGet("editor/{gameName}")]
+        public IActionResult Index(string gameName)
+        {
+            return View();
+        }
+
     }
 }

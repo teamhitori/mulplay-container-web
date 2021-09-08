@@ -24,12 +24,22 @@ namespace TeamHitori.Mulplay.Container.Web.Components
 
             _gameContainer.Start(Context.ConnectionId, gamePrimaryName);
 
-            _gameContainer.QueueNewUserEvent(Context.ConnectionId);
         }
+
+        public void Enter()
+        {
+            _logger.LogInformation("User Enter");
+
+            _gameContainer.PlayerEnter(Context.ConnectionId);
+        }
+
+
         [Authorize]
         public void Monitor(string gameName)
         {
-            _gameContainer.Monitor(Context.ConnectionId, gameName);
+            var userName = Context.User.Identity.Name.ToLower();
+
+            _gameContainer.Monitor(Context.ConnectionId, $"debug:{userName}:{gameName}");
         }
 
         [Authorize]
@@ -49,11 +59,11 @@ namespace TeamHitori.Mulplay.Container.Web.Components
         }
 
 
-        public void UserEvent(string content)
+        public void PlayerEvent(string content)
         {
             try
             {
-                _gameContainer.QueueUserEvent(Context.ConnectionId, content);
+                _gameContainer.PlayerEvent(Context.ConnectionId, content);
             } catch (Exception ex)
             {
                 _logger.LogError(ex, ex.Message);
@@ -64,7 +74,7 @@ namespace TeamHitori.Mulplay.Container.Web.Components
         {
             _logger.LogInformation($"${Context.ConnectionId} disconnected");
 
-            _gameContainer.UserDisconnect(Context.ConnectionId).Wait();
+            _gameContainer.PlayerDisconnect(Context.ConnectionId).Wait();
 
             return base.OnDisconnectedAsync(exception);
         }

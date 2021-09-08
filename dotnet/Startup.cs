@@ -180,23 +180,23 @@ namespace TeamHitori.Mulplay.Container.Web
                 app.UseHsts();
             }
 
-            app.UseHttpsRedirection();
+            //app.UseHttpsRedirection();
             app.UseStaticFiles();
 
-            app.Use(async (context, next) =>
-            {
-                var scheme = context.Request.Scheme;
-                if(scheme == "http")
-                {
-                    context.Request.Scheme =  "https";
-                }
+            //app.Use(async (context, next) =>
+            //{
+            //    var scheme = context.Request.Scheme;
+            //    if (scheme == "http")
+            //    {
+            //        context.Request.Scheme = "https";
+            //    }
 
-                logger.LogInformation($"Middleware: {context.Request.Scheme}://{context.Request.Host}");
-                
+            //    logger.LogInformation($"Middleware: {context.Request.Scheme}://{context.Request.Host}");
 
-                // Call the next delegate/middleware in the pipeline
-                await next();
-            });
+
+            //    // Call the next delegate/middleware in the pipeline
+            //    await next();
+            //});
 
 
             app.UseRouting();
@@ -218,13 +218,18 @@ namespace TeamHitori.Mulplay.Container.Web
                 endpoints.MapHub<GameHub>("/game");
 
                 endpoints.MapControllerRoute(
-                    name: "default",
-                    pattern: "{controller=Home}/{action=Index}/{id?}");
-
-                endpoints.MapControllerRoute(
                     name: "editor",
                     pattern: "editor/{gameName?}",
                     defaults: new { controller = "editor", action = "Index" });
+
+                endpoints.MapControllerRoute(
+                    name: "default",
+                    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+                //endpoints.MapControllerRoute(
+                //    name: "game",
+                //    pattern: "{author}/{gameName}",
+                //    defaults: new { controller = "game", action = "Index" });
 
                 endpoints.MapRazorPages();
             });

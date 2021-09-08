@@ -9,6 +9,8 @@ namespace TeamHitori.Mulplay.Container.Web.Documents.Game
     (
         string gameName,
         string gamePrimaryName,
-        string startTime
+        string createTime,
+        bool isStarted,
+        bool isDebug
     );
 }

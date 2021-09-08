@@ -12,7 +12,7 @@
 </head>
 <body class="mat-typography">
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-dark bg-dark border-bottom box-shadow">
+        <nav id="nav-bar" class="navbar navbar-expand-sm navbar-toggleable-sm navbar-dark bg-dark border-bottom box-shadow">
             <div class="container">
                 <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Team Hitori</a>
                 <button class="navbar-toggler" type="button" data-toggle="collapse" data-target=".navbar-collapse" aria-controls="navbarSupportedContent"
@@ -30,7 +30,7 @@
             </div>
         </nav>
     </header>
-    <main class="pb-3" role="main">
+    <main role="main">
         @RenderBody()
     </main>
 
