@@ -43,8 +43,7 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
                 } else
                 {
                     return Redirect("/MicrosoftIdentity/Account/SignIn");
-                }
-                
+                } 
             }
 
             return View();
@@ -71,14 +70,18 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
 
             if(activeInstance == null)
             {
-                var gamePrimaryName = Guid.NewGuid().ToString();
+                //var gamePrimaryName = Guid.NewGuid().ToString();
 
-                activeInstance = new GameInstance($"{author}:{gameName}:{publishProfile.version}", gamePrimaryName, DateTime.Now.ToString("yyyy/MM/dd HH:mm:ssZ"), false, false);
+                //activeInstance = new GameInstance($"{author}:{gameName}:{publishProfile.version}", gamePrimaryName, DateTime.Now.ToString("yyyy/MM/dd HH:mm:ssZ"), false, false);
 
-                await _gameContainer.CreateGame(activeInstance, publishProfile.gameDefinition);
+                //await _gameContainer.CreateGame(activeInstance, publishProfile.gameDefinition);
+
+                //_gameContainer.EnableDebug($"{author}:{gameName}", publishProfile.debugEnabled);
+
+                return null;
             }
 
-            return new PublishedGameInstance(publishProfile.gameDefinition.frontendLogic, activeInstance);
+            return new PublishedGameInstance(publishProfile.gameDefinition.frontendLogic, publishProfile.gameDefinition.gameConfig, activeInstance);
         }
     }
 }

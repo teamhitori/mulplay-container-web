@@ -6,8 +6,9 @@ using System.Threading.Tasks;
 namespace TeamHitori.Mulplay.Container.Web.Documents.Game
 {
     public record PublishProfile(
+        GameDefinition gameDefinition,
         string author,
         string version,
         DateTime publishDate,
-        GameDefinition gameDefinition);
+        bool debugEnabled);
 }

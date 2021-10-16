@@ -11,7 +11,9 @@ namespace TeamHitori.Mulplay.Container.Web.Documents.Game
         string backendLogic,
         GameConfig gameConfig,
         bool isPublished,
-        string publishedPath
+        string publishedPath,
+        string version = "",
+        bool debugEnabled = false
         );
 
     public static class GameDefinitionExtensions
@@ -51,7 +53,9 @@ namespace TeamHitori.Mulplay.Container.Web.Documents.Game
                 backendLogic?.code,
                 gameConfig,
                 publishProfileDoc != null,
-                publishedGameUrl
+                publishedGameUrl,
+                publishProfile?.version,
+                publishProfile?.debugEnabled ?? false
                 );
         }
     }

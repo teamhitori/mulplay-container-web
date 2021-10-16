@@ -18,11 +18,11 @@ namespace TeamHitori.Mulplay.Container.Web.Components
             _gameContainer = gameContainer;
         }
 
-        public void Start(string gamePrimaryName)
+        public async Task Start(string gamePrimaryName)
         {
             _logger.LogInformation("Start Called");
 
-            _gameContainer.Start(Context.ConnectionId, gamePrimaryName);
+            await _gameContainer.Start(Context.ConnectionId, gamePrimaryName);
 
         }
 
@@ -33,13 +33,29 @@ namespace TeamHitori.Mulplay.Container.Web.Components
             _gameContainer.PlayerEnter(Context.ConnectionId);
         }
 
-
         [Authorize]
-        public void Monitor(string gameName)
+        public void MonitorActivePlayers(string gameName)
         {
             var userName = Context.User.Identity.Name.ToLower();
 
-            _gameContainer.Monitor(Context.ConnectionId, $"debug:{userName}:{gameName}");
+            _gameContainer.MonitorActivePlayers(Context.ConnectionId, $"{userName}:{gameName}");
+        }
+
+        [Authorize]
+        public void MonitorInstance(string gamePrimaryName)
+        {
+            var userName = Context.User.Identity.Name.ToLower();
+
+            _gameContainer.MonitorInstance(Context.ConnectionId, gamePrimaryName);
+        }
+
+
+        [Authorize]
+        public void MonitorGame(string gameName)
+        {
+            var userName = Context.User.Identity.Name.ToLower();
+
+            _gameContainer.MontorGame(Context.ConnectionId, $"debug:{userName}:{gameName}");
         }
 
         [Authorize]
@@ -51,11 +67,11 @@ namespace TeamHitori.Mulplay.Container.Web.Components
         }
 
         [Authorize]
-        public void Stop()
+        public void Stop(string gamePrimaryName)
         {
-            _logger.LogInformation("Stop Called");
+            _logger.LogInformation($"Stop {gamePrimaryName}");
 
-            _gameContainer.Destroy(Context.ConnectionId);
+            _gameContainer.DestroyGame(gamePrimaryName);
         }
 
 
@@ -70,13 +86,13 @@ namespace TeamHitori.Mulplay.Container.Web.Components
             }
         }
 
-        public override Task OnDisconnectedAsync(Exception exception)
+        public async override Task OnDisconnectedAsync(Exception exception)
         {
             _logger.LogInformation($"${Context.ConnectionId} disconnected");
 
-            _gameContainer.PlayerDisconnect(Context.ConnectionId).Wait();
+            await _gameContainer.PlayerDisconnect(Context.ConnectionId);
 
-            return base.OnDisconnectedAsync(exception);
+            await base.OnDisconnectedAsync(exception);
         }
 
     }

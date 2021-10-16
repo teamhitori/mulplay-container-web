@@ -23,6 +23,10 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.WebEncoders;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
+using Microsoft.AspNetCore.SignalR;
+using TeamHitori.Mulplay.Container.Web.Components.Interfaces;
+using TeamHitori.Mulplay.shared.storage;
+using TeamHitori.Mulplay.Container.Web.Documents.Game;
 
 namespace TeamHitori.Mulplay.Container.Web
 {
@@ -38,7 +42,6 @@ namespace TeamHitori.Mulplay.Container.Web
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            //services.AddControllersWithViews();
 
             var azureSignalrConnectionString = Configuration["Azure:SignalR:ConnectionString"];
             services.AddSignalR()
@@ -46,12 +49,40 @@ namespace TeamHitori.Mulplay.Container.Web
                 {
                     options.ConnectionString = azureSignalrConnectionString;
                 });
-            services.AddSingleton<GameContainer>();
-            services.AddSingleton(_=>
+
+            services.AddSingleton<GameContainer>(serviceProvider =>
+            {
+                var storageConfig = serviceProvider.GetRequiredService<IStorageConfig>();
+                var storage = storageConfig.ToUserStorage($"TeamHitori.Mulplay.Container.Web.Components.GameContainer");
+                var hubContext = serviceProvider.GetRequiredService<IHubContext<GameHub, IGameClient>>();
+                var logger = serviceProvider.GetRequiredService<ILogger<GameContainer>>();
+                var grpcClient = serviceProvider.GetRequiredService<GameService.GameServiceClient>();
+                var gameContainer =  new GameContainer(hubContext, logger, grpcClient, storageConfig);
+
+                var doc = storage.GetSingleton<GameInstances>().Result;
+                var wrapper = doc?.GetObject();
+                var instances = wrapper
+                    ?.items
+                    ?.Where(i => !i.gameName.StartsWith("debug:"));
+                instances?.Foreach(async i =>
+                    {
+                        var publishName = string.Join(":", i.gameName.Split(":").Take(2));
+                        
+                        var storagePublish = storageConfig.ToUserStorage(publishName);
+                        var publishProfile = storagePublish.GetSingleton<PublishProfile>()?.Result.GetObject();
+
+
+                        await gameContainer.CreateGame(i with { isStarted = false, isMetricsActive = false }, publishProfile.gameDefinition);
+                    });
+
+                return gameContainer;
+            });
+
+            services.AddSingleton(_ =>
             {
                 var gameContainerUri = Configuration["game_container_uri"];
                 var channel = GrpcChannel.ForAddress(gameContainerUri);
-                
+
                 return new GameService.GameServiceClient(channel);
             });
 
@@ -62,12 +93,12 @@ namespace TeamHitori.Mulplay.Container.Web
                 var loggerFactory = LoggerFactory.Create(builder =>
                 {
                     builder
-                        .AddApplicationInsights(ikey)
+                        //.AddApplicationInsights(ikey)
                         .AddFilter("Microsoft", LogLevel.Warning)
                         .AddFilter("System", LogLevel.Warning)
                         .AddFilter("LoggingConsoleApp.Program", LogLevel.Debug)
-                        .AddFilter<Microsoft.Extensions.Logging.ApplicationInsights.ApplicationInsightsLoggerProvider>
-                             ("", LogLevel.Trace)
+                             //.AddFilter<Microsoft.Extensions.Logging.ApplicationInsights.ApplicationInsightsLoggerProvider>
+                             //     ("", LogLevel.Trace)
                              .AddConsole();
                 });
 
@@ -76,24 +107,8 @@ namespace TeamHitori.Mulplay.Container.Web
                 return logger;
             });
 
-
-            services.AddScoped(col =>
+            services.AddSingleton(col =>
             {
-
-                //var loggerFactory = LoggerFactory.Create(builder =>
-                //{
-                //    builder
-                //        .AddApplicationInsights(ikey)
-                //        .AddFilter("Microsoft", LogLevel.Warning)
-                //        .AddFilter("System", LogLevel.Warning)
-                //        .AddFilter("LoggingConsoleApp.Program", LogLevel.Debug)
-                //        .AddFilter<Microsoft.Extensions.Logging.ApplicationInsights.ApplicationInsightsLoggerProvider>
-                //             ("", LogLevel.Trace)
-                //        .AddConsole();
-                //    ;
-                //});
-
-                //var logger = loggerFactory.CreateLogger("main");
                 var logger = col.GetRequiredService<ILogger>();
                 var blobConnectionString = Configuration["Azure:Blob:ConnectionString"];
                 var containerName = Configuration["Azure:Blob:ContainerName"];
@@ -102,13 +117,13 @@ namespace TeamHitori.Mulplay.Container.Web
                 var key = Configuration["Azure:Cosmos:Key"];
                 var databaseId = Configuration["Azure:Cosmos:DatabaseId"];
                 var collectionId = Configuration["Azure:Cosmos:CollectionId"];
-                var cache = string.IsNullOrEmpty(cacheConnectionString)? null : ConnectionMultiplexer.Connect(cacheConnectionString).GetDatabase();
+                var cache = string.IsNullOrEmpty(cacheConnectionString) ? null : ConnectionMultiplexer.Connect(cacheConnectionString).GetDatabase();
 
-                return StorageExtensions.CreateStorage(blobConnectionString, endpoint, key, databaseId, collectionId, logger, cache);
+                return Components.StorageExtensions.CreateStorage(blobConnectionString, endpoint, key, databaseId, collectionId, logger, cache);
             });
 
             // The following line enables Application Insights telemetry collection.
-            services.AddApplicationInsightsTelemetry();
+            //services.AddApplicationInsightsTelemetry();
 
 
             // Adds Microsoft Identity platform (AAD v2.0) support to protect this Api
@@ -130,35 +145,20 @@ namespace TeamHitori.Mulplay.Container.Web
                 options.HandleSameSiteCookieCompatibility();
             });
 
+            services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+                .AddMicrosoftIdentityWebApp(Configuration.GetSection("AzureAdB2C"));
 
-            services.AddOptions();
+            services.AddAuthorization(options =>
+            {
+                // By default, all incoming requests will be authorized according to 
+                // the default policy
+                options.FallbackPolicy = options.DefaultPolicy;
+            });
 
-            //services.AddMicrosoftIdentityWebAppAuthentication(Configuration, "AzureAdB2CSignUp", openIdConnectScheme: "signup", cookieScheme: "signup-cookies")
-            //        .EnableTokenAcquisitionToCallDownstreamApi(new string[] { Configuration["Scope_Member_Edit"] })
-            //        .AddInMemoryTokenCaches();
-
-            //var builder = services.AddAuthentication("");
-
-            services.AddMicrosoftIdentityWebAppAuthentication(Configuration, "AzureAdB2C")
-                    .EnableTokenAcquisitionToCallDownstreamApi(new string[] { Configuration["Scope"] })
-                    .AddInMemoryTokenCaches();
-
-            services.AddControllersWithViews().AddMicrosoftIdentityUI();
+            services.AddControllersWithViews()
+                .AddMicrosoftIdentityUI();
 
             services.AddRazorPages();
-
-            //Configuring appsettings section AzureAdB2C, into IOptions
-            services.AddOptions();
-            services.Configure<OpenIdConnectOptions>(Configuration.GetSection("AzureAdB2C"));
-
-            // debuging
-
-            //var section =
-            //Configuration.GetSection("AzureAdB2C") as OpenIdConnectOptions;
-
-            
-
-            //
 
             services.Configure<WebEncoderOptions>(options =>
             {
@@ -180,23 +180,23 @@ namespace TeamHitori.Mulplay.Container.Web
                 app.UseHsts();
             }
 
-            //app.UseHttpsRedirection();
+            app.UseHttpsRedirection();
             app.UseStaticFiles();
 
-            //app.Use(async (context, next) =>
-            //{
-            //    var scheme = context.Request.Scheme;
-            //    if (scheme == "http")
-            //    {
-            //        context.Request.Scheme = "https";
-            //    }
+            app.Use(async (context, next) =>
+            {
+                var scheme = context.Request.Scheme;
+                if (scheme == "http")
+                {
+                    context.Request.Scheme = "https";
+                }
 
-            //    logger.LogInformation($"Middleware: {context.Request.Scheme}://{context.Request.Host}");
+                logger.LogInformation($"Middleware: {context.Request.Scheme}://{context.Request.Host}");
 
 
-            //    // Call the next delegate/middleware in the pipeline
-            //    await next();
-            //});
+                // Call the next delegate/middleware in the pipeline
+                await next();
+            });
 
 
             app.UseRouting();
@@ -211,6 +211,7 @@ namespace TeamHitori.Mulplay.Container.Web
 
             app.UseAuthentication();
             app.UseAuthorization();
+
             app.UseSession();
 
             app.UseEndpoints(endpoints =>
@@ -225,11 +226,6 @@ namespace TeamHitori.Mulplay.Container.Web
                 endpoints.MapControllerRoute(
                     name: "default",
                     pattern: "{controller=Home}/{action=Index}/{id?}");
-
-                //endpoints.MapControllerRoute(
-                //    name: "game",
-                //    pattern: "{author}/{gameName}",
-                //    defaults: new { controller = "game", action = "Index" });
 
                 endpoints.MapRazorPages();
             });

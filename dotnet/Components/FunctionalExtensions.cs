@@ -9,12 +9,27 @@ namespace TeamHitori.Mulplay.Container.Web.Components
     {
         public static T DoIfNull<T>(this T obj, Func<T> action)
         {
-            if(obj == null)
+            if (obj == null)
             {
                 return action();
             }
 
             return obj;
+        }
+
+        public static IEnumerable<T> Replace<T>(this IEnumerable<T> collection, Func<T,T> func, Func<T, bool> pred)
+        {
+            foreach (var item in collection)
+            {
+                if (pred(item))
+                {
+                    yield return func(item);
+                }
+                else
+                {
+                    yield return item;
+                }
+            }
         }
 
         public static IEnumerable<T> Upsert<T>(this IEnumerable<T> collection, T itemIn, Func<T, bool> pred)
@@ -26,19 +41,20 @@ namespace TeamHitori.Mulplay.Container.Web.Components
                 {
                     updated = true;
                     yield return itemIn;
-                } else
+                }
+                else
                 {
                     yield return item;
                 }
             }
 
-            if(!updated)
+            if (!updated)
             {
                 yield return itemIn;
             }
         }
 
-        public static IEnumerable<T> Remove<T>(this IEnumerable<T> collection,Func<T, bool> pred)
+        public static IEnumerable<T> Remove<T>(this IEnumerable<T> collection, Func<T, bool> pred)
         {
             foreach (var item in collection)
             {
@@ -50,6 +66,14 @@ namespace TeamHitori.Mulplay.Container.Web.Components
                 {
                     yield return item;
                 }
+            }
+        }
+
+        public static void Foreach<T>(this IEnumerable<T> collection, Action<T> action)
+        {
+            foreach (var item in collection)
+            {
+                action(item);
             }
         }
     }

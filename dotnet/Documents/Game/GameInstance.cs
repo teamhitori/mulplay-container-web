@@ -10,7 +10,8 @@ namespace TeamHitori.Mulplay.Container.Web.Documents.Game
         string gameName,
         string gamePrimaryName,
         string createTime,
-        bool isStarted,
-        bool isDebug
+        bool isStarted = false,
+        bool isDebug = false,
+        bool isMetricsActive = false
     );
 }

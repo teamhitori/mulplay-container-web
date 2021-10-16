@@ -14,33 +14,36 @@ using TeamHitori.Mulplay.Shared.Poco;
 using System.Collections.Generic;
 using TeamHitori.Mulplay.Container.Web.Documents.Game;
 using System.Linq;
+using TeamHitori.Mulplay.shared.storage;
 
 namespace TeamHitori.Mulplay.Container.Web.Components
 {
     public class GameContainer
     {
-        public IEnumerable<GameInstance> ActiveGameInstances { get; private set; } = new List<GameInstance>();
+        public IEnumerable<GameInstance> ActiveGameInstances { get { return _gameInstances.items; } }
 
         private IHubContext<GameHub, IGameClient> _hubContext { get; }
         private GameService.GameServiceClient _grpcClient;
+        private Storage _storage;
         private readonly ILogger<GameContainer> _logger;
         private IClientStreamWriter<ConnectedPlayerDocument> _playerEventRequestStream;
-        //private IAsyncStreamReader<ConnectedPlayerDocument> _playerEventResponseStream;
-
-        //private CancellationTokenSource _gameTokensource;
-        private bool _metricsActive;
-        //private Dictionary<string, bool> _loopActive = new Dictionary<string, bool>();
         private Dictionary<string, string> _connections = new Dictionary<string, string>();
-        private Dictionary<string, string> _monitor = new Dictionary<string, string>();
+        private Dictionary<string, string> _monitorsGame = new Dictionary<string, string>();
+        private Dictionary<string, string> _monitorsInstance = new Dictionary<string, string>();
+        private Dictionary<string, string> _monitorActivePlayers = new Dictionary<string, string>();
+        private GameInstances _gameInstances = new GameInstances(new List<GameInstance>());
 
         public GameContainer(
             IHubContext<GameHub, IGameClient> hubContext,
             ILogger<GameContainer> logger,
-            GameService.GameServiceClient grpcClient)
+            GameService.GameServiceClient grpcClient,
+            IStorageConfig storageConfig)
         {
             _hubContext = hubContext;
             _logger = logger;
             _grpcClient = grpcClient;
+            _storage = storageConfig.ToUserStorage($"TeamHitori.Mulplay.Container.Web.Components.GameContainer");
+
             _logger.LogInformation("Game Container Called");
         }
 
@@ -48,9 +51,9 @@ namespace TeamHitori.Mulplay.Container.Web.Components
         {
             try
             {
-                var existingInstance = ActiveGameInstances.FirstOrDefault(i =>  i.gamePrimaryName == gameInstance.gamePrimaryName );
+                var existingInstance = _gameInstances.items.FirstOrDefault(i => i.gamePrimaryName == gameInstance.gamePrimaryName);
 
-                if (existingInstance !=  null)
+                if (existingInstance != null)
                 {
                     this._logger.LogInformation($"Game instance already exists:{gameInstance.gameName}, gamePrimaryName:{gameInstance.gamePrimaryName}");
                     return;
@@ -58,65 +61,114 @@ namespace TeamHitori.Mulplay.Container.Web.Components
 
                 var grpcResponse = _grpcClient.createGame(new Document { Content = JsonSerializer.Serialize(gameDefinition), GamePrimaryName = gameInstance.gamePrimaryName });
 
-                ActiveGameInstances = ActiveGameInstances.Upsert(gameInstance, inst => inst.gamePrimaryName == gameInstance.gamePrimaryName);
+                var items = _gameInstances.items.Upsert(gameInstance, inst => inst.gamePrimaryName == gameInstance.gamePrimaryName);
 
-                foreach (var item in _monitor)
+                _gameInstances = new GameInstances(items);
+
+                await _storage.Upsert(_gameInstances, true);
+
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e.Message);
+                throw;
+            }
+        }
+
+        public async Task DestroyGame(string gamePrimaryName)
+        {
+            try
+            {
+                var grpcResponse = _grpcClient.destroyGame(new Document() { Content = JsonSerializer.Serialize(""), GamePrimaryName = gamePrimaryName });
+
+                foreach (var conn in _connections.ToList())
                 {
-                    if (item.Value == gameInstance.gameName)
+                    if (conn.Value == gamePrimaryName)
                     {
-                        await _hubContext.Clients.Client(item.Key).OnNotifyReload();
+                        _ = _hubContext.Clients.Client(conn.Key).OnGameEnd(grpcResponse.Content);
+
+                        _connections.Remove(conn.Key);
                     }
                 }
             }
             catch (Exception e)
             {
+
                 _logger.LogError(e.Message);
+            }
+            finally
+            {
+                var items = _gameInstances.items.Replace(i => i with { isStarted = false }, i => i.gamePrimaryName == gamePrimaryName);
+
+                _gameInstances = new GameInstances(items);
+
+                await _storage.Upsert(_gameInstances, true);
             }
         }
 
-        public void Start(string connectionId, string gamePrimaryName)
+        public async Task NotifyReload(string gameName)
+        {
+            foreach (var item in _monitorsGame)
+            {
+                if (item.Value == gameName)
+                {
+                    await _hubContext.Clients.Client(item.Key).OnNotifyReload();
+                }
+            }
+        }
+
+        public async Task Start(string connectionId, string gamePrimaryName)
         {
             _logger.LogInformation($"## Start connectionId:{connectionId}, gamePrimaryName:{gamePrimaryName}");
 
-            StartGame(connectionId, gamePrimaryName);
+            await StartGame(connectionId, gamePrimaryName);
 
-            StartMetrics(connectionId);
+            await StartMetrics(connectionId);
+
+            NotifyActivePlayerCount(gamePrimaryName);
+        }
+
+        private void NotifyActivePlayerCount(string gamePrimaryName)
+        {
+            var game = _gameInstances.items.FirstOrDefault(i => i.gamePrimaryName == gamePrimaryName);
+
+            if (game != null)
+            {
+                var activeInstances = _gameInstances.items.Where(inst => inst.gameName.StartsWith(game.gameName));
+                var activePlayers = activeInstances.Aggregate(0, (count, inst) => GetActiveConnectionCount(inst.gamePrimaryName) + count);
+
+                foreach (var conn in _monitorActivePlayers)
+                {
+                    if (game.gameName.StartsWith(conn.Value))
+                    {
+                        _ = _hubContext.Clients.Client(conn.Key).OnActivePlayerChange(activePlayers);
+                    }
+
+                }
+            }
 
         }
 
-
-        public void PlayerEnter(string connectionId)
+        public async Task PlayerEnter(string connectionId)
         {
+            var connectionExists = _connections.TryGetValue(connectionId, out string gamePrimaryName);
+
+            if (!connectionExists)
+            {
+                _logger.LogError($"QueueNewPlayerEvent could not find connection {connectionId}");
+                return;
+            }
+
             try
             {
-                var connectionExists = _connections.TryGetValue(connectionId, out string gamePrimaryName);
-
-                if (!connectionExists)
-                {
-                    _logger.LogError($"QueueNewPlayerEvent could not find connection {connectionId}");
-                    return;
-                }
-
                 var grpcResponse = _grpcClient.playerEnter(
                     new ConnectedPlayerDocument { ConnectionId = connectionId, GamePrimaryName = gamePrimaryName });
-
-                //var finish = DateTime.Now;
-                //var intervalMs = (finish - interval).TotalMilliseconds;
-                //interval = finish;
-
-                //this._logger.LogInformation($"Player {connectionId}, {grpcResponse.Content}");
-
-
-                //_playerEventResponseStream = grpcResponse.ResponseStream;
-
-                
-
-                //_hubContext.Clients.Client(grpcResponse.ConnectionId).OnPlayerEnterState(grpcResponse.Content);
 
             }
             catch (Exception e)
             {
                 _logger.LogError(e.Message);
+                await DestroyGame(gamePrimaryName);
             }
         }
 
@@ -124,6 +176,11 @@ namespace TeamHitori.Mulplay.Container.Web.Components
         {
             try
             {
+                if (_playerEventRequestStream == null)
+                {
+                    return;
+                }
+
                 var connectionExists = _connections.TryGetValue(connectionId, out string gamePrimaryName);
 
                 if (!connectionExists)
@@ -152,10 +209,10 @@ namespace TeamHitori.Mulplay.Container.Web.Components
             var connectionExists = _connections.TryGetValue(connectionId, out string gamePrimaryName);
 
             _connections.Remove(connectionId);
-            _monitor.Remove(connectionId);
+            _monitorsGame.Remove(connectionId);
 
             var activeConnections = false;
-            foreach (var item in _connections)
+            foreach (var item in _connections.ToList())
             {
                 if (item.Value == gamePrimaryName)
                 {
@@ -171,15 +228,29 @@ namespace TeamHitori.Mulplay.Container.Web.Components
                 await _hubContext.Clients.Client(grpcResponse.ConnectionId).OnPlayerExitState(grpcResponse.Content);
             }
 
-            if (!activeConnections)
+            if (!activeConnections && !String.IsNullOrEmpty(gamePrimaryName))
             {
-                DestroyGame(gamePrimaryName);
+                await DestroyGame(gamePrimaryName);
             }
+
+            NotifyActivePlayerCount(gamePrimaryName);
         }
 
-        public void Monitor(string connectionId, string gameName)
+        public void MontorGame(string connectionId, string gameName)
         {
-            _monitor[connectionId] = gameName;
+            _monitorsGame[connectionId] = gameName;
+        }
+
+
+        public void MonitorActivePlayers(string connectionId, string gameLocation)
+        {
+            _monitorActivePlayers[connectionId] = gameLocation;
+        }
+
+
+        public void MonitorInstance(string connectionId, string gamePrimaryName)
+        {
+            _monitorsInstance[connectionId] = gamePrimaryName;
         }
 
         public void Step(string connectionId)
@@ -208,58 +279,27 @@ namespace TeamHitori.Mulplay.Container.Web.Components
 
         }
 
-        public void Destroy(string connectionId)
+        public int GetActiveConnectionCount(string gamePrimaryName)
         {
-            _logger.LogInformation($"## Destroy Called");
-
-            var connectionExists = _connections.TryGetValue(connectionId, out string gamePrimaryName);
-
-            if (!connectionExists)
-            {
-                _logger.LogError($"Destroy could not find connection {connectionId}");
-                return;
-            }
-
-            // Define the cancellation token.
-            // CancellationTokenSource source = new CancellationTokenSource();
-            // CancellationToken token = source.Token;
-
-            //this._logger.LogInformation($"connecting on http://loops-game-container");
-
-            //var interval = DateTime.Now;
-            DestroyGame(gamePrimaryName);
+            return _connections.Count(pair => pair.Value == gamePrimaryName);
         }
 
-        private void DestroyGame(string gamePrimaryName)
+        public async Task EnableDebug(string gameName, Boolean enable)
         {
-            try
+            var existingInstance = _gameInstances.items.FirstOrDefault(i => i.gameName.StartsWith(gameName));
+            if (existingInstance != null)
             {
-                var grpcResponse = _grpcClient.destroyGame(new Document() { Content = JsonSerializer.Serialize(""), GamePrimaryName = gamePrimaryName });
+                var items = _gameInstances.items.Upsert(existingInstance with { isDebug = enable }, i => i.gameName.StartsWith(gameName));
 
-                foreach (var conn in _connections)
-                {
-                    if (conn.Value == gamePrimaryName)
-                    {
-                        _ = _hubContext.Clients.Client(conn.Key).OnGameEnd(grpcResponse.Content);
-                    }
-                }
+                _gameInstances = new GameInstances(items);
 
+                await _storage.Upsert(_gameInstances, true);
             }
-            catch (Exception e)
-            {
-
-                _logger.LogError(e.Message);
-            }
-            finally
-            {
-                ActiveGameInstances = ActiveGameInstances.Remove(i => i.gamePrimaryName == gamePrimaryName);
-            }
-
         }
 
-        private void StartGame(string connectionId, string gamePrimaryName)
+        private async Task StartGame(string connectionId, string gamePrimaryName)
         {
-            var existingInstance = ActiveGameInstances.FirstOrDefault(i => i.gamePrimaryName == gamePrimaryName);
+            var existingInstance = _gameInstances.items.FirstOrDefault(i => i.gamePrimaryName == gamePrimaryName);
 
             if (existingInstance == null)
             {
@@ -278,11 +318,15 @@ namespace TeamHitori.Mulplay.Container.Web.Components
                 _playerEventRequestStream?.CompleteAsync();
                 _playerEventRequestStream = playerEvent.RequestStream;
 
-                StartGameLoop(connectionId, gamePrimaryName);
+                await StartGameLoop(connectionId, gamePrimaryName);
 
                 StartPlayerEventLoop(gamePrimaryName);
 
-                ActiveGameInstances = ActiveGameInstances.Upsert(existingInstance with { isStarted = true }, i => i.gamePrimaryName == gamePrimaryName);
+                var items = _gameInstances.items.Upsert(existingInstance with { isStarted = true }, i => i.gamePrimaryName == gamePrimaryName);
+
+                _gameInstances = new GameInstances(items);
+
+                await _storage.Upsert(_gameInstances, true);
             }
             else
             {
@@ -294,50 +338,61 @@ namespace TeamHitori.Mulplay.Container.Web.Components
 
         }
 
-        private void StartGameLoop(string connectionId, string gamePrimaryName)
+        private async Task StartGameLoop(string connectionId, string gamePrimaryName)
         {
-            new Task(async () =>
+
+            try
             {
-                try
+                this._logger.LogInformation($"Game Loop starting - connectionId:{connectionId}, gamePrimaryName:{gamePrimaryName}");
+
+                var interval = DateTime.Now;
+
+                var grpcResponse = _grpcClient.startGame(
+                    new Document { Content = JsonSerializer.Serialize("not used"), GamePrimaryName = gamePrimaryName });
+
+                new Task(async () =>
                 {
-                    this._logger.LogInformation($"Game Loop starting - connectionId:{connectionId}, gamePrimaryName:{gamePrimaryName}");
-
-                    var interval = DateTime.Now;
-
-                    var grpcResponse = _grpcClient.startGame(
-                        new Document { Content = JsonSerializer.Serialize("not used"), GamePrimaryName = gamePrimaryName });
-
-                    while (await grpcResponse.ResponseStream.MoveNext())
+                    try
                     {
-                        var point = grpcResponse.ResponseStream.Current;
 
-                        foreach (var conn in _connections)
+                        while (await grpcResponse.ResponseStream.MoveNext())
                         {
-                            if (conn.Value == gamePrimaryName)
+                            var point = grpcResponse.ResponseStream.Current;
+
+                            foreach (var conn in _connections.ToList())
                             {
-                                _ = _hubContext.Clients.Client(conn.Key).OnGameState(point.Content);
+                                if (conn.Value == gamePrimaryName)
+                                {
+                                    _ = _hubContext.Clients.Client(conn.Key).OnGameState(point.Content);
+                                }
                             }
+
+                            var finish = DateTime.Now;
+                            var intervalMs = (finish - interval).TotalMilliseconds;
+                            interval = finish;
+
+                            //this._logger.LogInformation($"ms: {intervalMs}");
                         }
 
-                        var finish = DateTime.Now;
-                        var intervalMs = (finish - interval).TotalMilliseconds;
-                        interval = finish;
-
-                        //this._logger.LogInformation($"ms: {intervalMs}");
+                        this._logger.LogInformation($"Game Loop ending - connectionId:{connectionId}, gamePrimaryName:{gamePrimaryName}");
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogError(e.Message);
+                    }
+                    finally
+                    {
+                        await DestroyGame(gamePrimaryName);
                     }
 
-                    this._logger.LogInformation($"Game Loop ending - connectionId:{connectionId}, gamePrimaryName:{gamePrimaryName}");
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError(e.Message);
-                }
-                finally
-                {
-                    DestroyGame(gamePrimaryName);
-                }
+                }).Start();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e.Message);
+                await DestroyGame(gamePrimaryName);
+            }
 
-            }).Start();
         }
 
         private void StartPlayerEventLoop(string gamePrimaryName)
@@ -357,7 +412,7 @@ namespace TeamHitori.Mulplay.Container.Web.Components
                     {
                         var point = grpcResponse.ResponseStream.Current;
 
-                        if(point == null)
+                        if (point == null)
                         {
                             continue;
                         }
@@ -381,7 +436,7 @@ namespace TeamHitori.Mulplay.Container.Web.Components
             }).Start();
         }
 
-        private void StartMetrics(string connectionId)
+        private async Task StartMetrics(string connectionId)
         {
             var connectionExists = _connections.TryGetValue(connectionId, out string gamePrimaryName);
 
@@ -391,17 +446,16 @@ namespace TeamHitori.Mulplay.Container.Web.Components
                 return;
             }
 
-            var existingInstance = ActiveGameInstances.FirstOrDefault(i => i.gamePrimaryName == gamePrimaryName);
+            var existingInstance = _gameInstances.items.FirstOrDefault(i => i.gamePrimaryName == gamePrimaryName);
 
-            if (!existingInstance.isDebug)
-            {
-                _logger.LogError($"Game:{existingInstance.gameName}, Instance:{gamePrimaryName} is not Debuggable");
-                return;
-            }
 
-            if (!_metricsActive)
+            if (!existingInstance.isMetricsActive)
             {
-                _metricsActive = true;
+                var items = _gameInstances.items.Upsert(existingInstance with { isMetricsActive = true }, i => i.gamePrimaryName == gamePrimaryName);
+
+                _gameInstances = new GameInstances(items);
+
+                await _storage.Upsert(_gameInstances, true);
 
                 new Task(async () =>
                 {
@@ -414,13 +468,20 @@ namespace TeamHitori.Mulplay.Container.Web.Components
 
                         while (await grpcResponse.ResponseStream.MoveNext())
                         {
+                            if (!existingInstance.isDebug)
+                            {
+                                continue;
+                            }
+
+                            var connections = _monitorsInstance.Where(pair => pair.Value == existingInstance.gamePrimaryName).Select(pair => pair.Key);
+
                             var point = grpcResponse.ResponseStream.Current;
 
-                            foreach (var conn in _connections)
+                            foreach (var conn in connections)
                             {
-                                if (conn.Value == gamePrimaryName)
+                                //if (conn.Value == gamePrimaryName)
                                 {
-                                    _ = _hubContext.Clients.Client(conn.Key).OnMetrics(point.Content);
+                                    _ = _hubContext.Clients.Client(conn).OnMetrics(point.Content);
                                 }
                             }
 
@@ -438,7 +499,11 @@ namespace TeamHitori.Mulplay.Container.Web.Components
                     }
                     finally
                     {
-                        _metricsActive = false;
+                        var items = _gameInstances.items.Upsert(existingInstance with { isMetricsActive = false }, i => i.gamePrimaryName == gamePrimaryName);
+
+                        _gameInstances = new GameInstances(items);
+
+                        await _storage.Upsert(_gameInstances, true);
                     }
 
                 }).Start();

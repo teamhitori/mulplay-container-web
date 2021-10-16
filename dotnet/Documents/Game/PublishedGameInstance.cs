@@ -7,6 +7,7 @@ namespace TeamHitori.Mulplay.Container.Web.Documents.Game
 {
     public record PublishedGameInstance(
         string frontEndLogic,
+        GameConfig GameConfig,
         GameInstance gameInstance
         );
 }
