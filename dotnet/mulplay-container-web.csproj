@@ -24,10 +24,11 @@
 
 	<ItemGroup>
 		<PackageReference Include="AspNetCore.Proxy" Version="4.2.0" />
-		<PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.15.0" />
+		<PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.18.0" />
 		<PackageReference Include="Microsoft.Azure.SignalR" Version="1.8.1" />
     <PackageReference Include="Microsoft.Identity.Web" Version="1.16.0" />
     <PackageReference Include="Microsoft.Identity.Web.UI" Version="1.16.0" />
+    <PackageReference Include="System.Net.WebSockets.Client" Version="4.3.2" />
 		<PackageReference Include="System.Reactive" Version="5.0.0" />
 		<PackageReference Include="Google.Protobuf" Version="3.16.0" />
 		<PackageReference Include="Grpc.Net.Client" Version="2.37.0" />

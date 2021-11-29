@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 
 namespace TeamHitori.Mulplay.Container.Web.Documents.Game
 {
-    public record GameLogic(
+    public record CompiledCode(
         string gameName,
-        LogicType logicType,
+        CodeType codeType,
         string code
         );
 }

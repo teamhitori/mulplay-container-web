@@ -7,6 +7,8 @@ namespace TeamHitori.Mulplay.Container.Web.Documents.Game
 {
     public record PublishProfile(
         GameDefinition gameDefinition,
+        string compiledFE,
+        string compiledBE,
         string author,
         string version,
         DateTime publishDate,

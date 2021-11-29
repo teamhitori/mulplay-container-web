@@ -17,7 +17,7 @@ namespace TeamHitori.Mulplay.Container.Web.Components
             return obj;
         }
 
-        public static IEnumerable<T> Replace<T>(this IEnumerable<T> collection, Func<T,T> func, Func<T, bool> pred)
+        public static IEnumerable<T> Replace<T>(this IEnumerable<T> collection, Func<T, T> func, Func<T, bool> pred)
         {
             foreach (var item in collection)
             {
@@ -32,7 +32,7 @@ namespace TeamHitori.Mulplay.Container.Web.Components
             }
         }
 
-        public static IEnumerable<T> Upsert<T>(this IEnumerable<T> collection, T itemIn, Func<T, bool> pred)
+        public static IEnumerable<T> Upsert<T>(this IEnumerable<T> collection, T itemIn, Func<T, bool> pred) 
         {
             var updated = false;
             foreach (var item in collection)
@@ -40,7 +40,8 @@ namespace TeamHitori.Mulplay.Container.Web.Components
                 if (pred(item))
                 {
                     updated = true;
-                    yield return itemIn;
+                    if (itemIn != null)
+                        yield return itemIn;
                 }
                 else
                 {
@@ -48,7 +49,7 @@ namespace TeamHitori.Mulplay.Container.Web.Components
                 }
             }
 
-            if (!updated)
+            if (!updated && itemIn != null)
             {
                 yield return itemIn;
             }

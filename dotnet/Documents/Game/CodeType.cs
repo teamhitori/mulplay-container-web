@@ -1,7 +1,7 @@
 ﻿
 namespace TeamHitori.Mulplay.Container.Web.Documents.Game
 {
-    public enum LogicType
+    public enum CodeType
     {
         FrontendLogic,
         BackendLogic

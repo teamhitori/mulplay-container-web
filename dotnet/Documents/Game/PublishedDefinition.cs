@@ -27,7 +27,7 @@ namespace TeamHitori.Mulplay.Container.Web.Documents.Game
                 gameDefinition.isPublished,
                 $"/{userName}/{gameDefinition.gameName}",
                 activeInstances.Any(),
-                activeInstances.Aggregate(0, (count, inst) => gameContainer.GetActiveConnectionCount(inst.gamePrimaryName) + count),
+                0, //activeInstances.Aggregate(0, (count, inst) => gameContainer.GetActiveConnectionCount(inst.gamePrimaryName) + count),
                 gameDefinition.version
                 );
         }

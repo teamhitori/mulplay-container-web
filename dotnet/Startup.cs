@@ -27,6 +27,10 @@ using Microsoft.AspNetCore.SignalR;
 using TeamHitori.Mulplay.Container.Web.Components.Interfaces;
 using TeamHitori.Mulplay.shared.storage;
 using TeamHitori.Mulplay.Container.Web.Documents.Game;
+using Microsoft.IdentityModel.Logging;
+using System.Net;
+using System.Net.WebSockets;
+using System.Threading;
 
 namespace TeamHitori.Mulplay.Container.Web
 {
@@ -42,6 +46,7 @@ namespace TeamHitori.Mulplay.Container.Web
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            IdentityModelEventSource.ShowPII = true;
 
             var azureSignalrConnectionString = Configuration["Azure:SignalR:ConnectionString"];
             services.AddSignalR()
@@ -50,27 +55,28 @@ namespace TeamHitori.Mulplay.Container.Web
                     options.ConnectionString = azureSignalrConnectionString;
                 });
 
-            services.AddSingleton<GameContainer>(serviceProvider =>
+            services.AddSingleton(serviceProvider =>
             {
                 var storageConfig = serviceProvider.GetRequiredService<IStorageConfig>();
                 var storage = storageConfig.ToUserStorage($"TeamHitori.Mulplay.Container.Web.Components.GameContainer");
                 var hubContext = serviceProvider.GetRequiredService<IHubContext<GameHub, IGameClient>>();
                 var logger = serviceProvider.GetRequiredService<ILogger<GameContainer>>();
-                var grpcClient = serviceProvider.GetRequiredService<GameService.GameServiceClient>();
-                var gameContainer =  new GameContainer(hubContext, logger, grpcClient, storageConfig);
+                var httpService = serviceProvider.GetRequiredService<IHttpService>();
+                //var grpcClient = serviceProvider.GetRequiredService<GameService.GameServiceClient>();
+                var websocketService = serviceProvider.GetRequiredService<IWebSocketService>();
+
+                var gameContainer = new GameContainer(hubContext, logger, websocketService, storageConfig, httpService);
 
                 var doc = storage.GetSingleton<GameInstances>().Result;
                 var wrapper = doc?.GetObject();
                 var instances = wrapper
                     ?.items
-                    ?.Where(i => !i.gameName.StartsWith("debug:"));
+                    ?.Where(i => !i.gameName.StartsWith("debug:") && false);
                 instances?.Foreach(async i =>
                     {
                         var publishName = string.Join(":", i.gameName.Split(":").Take(2));
-                        
                         var storagePublish = storageConfig.ToUserStorage(publishName);
                         var publishProfile = storagePublish.GetSingleton<PublishProfile>()?.Result.GetObject();
-
 
                         await gameContainer.CreateGame(i with { isStarted = false, isMetricsActive = false }, publishProfile.gameDefinition);
                     });
@@ -93,12 +99,12 @@ namespace TeamHitori.Mulplay.Container.Web
                 var loggerFactory = LoggerFactory.Create(builder =>
                 {
                     builder
-                        //.AddApplicationInsights(ikey)
+                        .AddApplicationInsights(ikey)
                         .AddFilter("Microsoft", LogLevel.Warning)
                         .AddFilter("System", LogLevel.Warning)
                         .AddFilter("LoggingConsoleApp.Program", LogLevel.Debug)
-                             //.AddFilter<Microsoft.Extensions.Logging.ApplicationInsights.ApplicationInsightsLoggerProvider>
-                             //     ("", LogLevel.Trace)
+                             .AddFilter<Microsoft.Extensions.Logging.ApplicationInsights.ApplicationInsightsLoggerProvider>
+                                  ("", LogLevel.Trace)
                              .AddConsole();
                 });
 
@@ -106,6 +112,8 @@ namespace TeamHitori.Mulplay.Container.Web
 
                 return logger;
             });
+
+            services.AddSingleton<IWebSocketService, WebSocketService>();
 
             services.AddSingleton(col =>
             {
@@ -123,7 +131,7 @@ namespace TeamHitori.Mulplay.Container.Web
             });
 
             // The following line enables Application Insights telemetry collection.
-            //services.AddApplicationInsightsTelemetry();
+            services.AddApplicationInsightsTelemetry();
 
 
             // Adds Microsoft Identity platform (AAD v2.0) support to protect this Api
@@ -155,6 +163,9 @@ namespace TeamHitori.Mulplay.Container.Web
                 options.FallbackPolicy = options.DefaultPolicy;
             });
 
+            services.AddHttpClient<IHttpService, HttpService>()
+                .SetHandlerLifetime(TimeSpan.FromMinutes(5));
+
             services.AddControllersWithViews()
                 .AddMicrosoftIdentityUI();
 
@@ -169,6 +180,10 @@ namespace TeamHitori.Mulplay.Container.Web
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILogger<Startup> logger)
         {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls
+                | SecurityProtocolType.Tls11
+                | SecurityProtocolType.Tls12;
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -180,7 +195,7 @@ namespace TeamHitori.Mulplay.Container.Web
                 app.UseHsts();
             }
 
-            app.UseHttpsRedirection();
+            //app.UseHttpsRedirection();
             app.UseStaticFiles();
 
             app.Use(async (context, next) =>
@@ -189,10 +204,8 @@ namespace TeamHitori.Mulplay.Container.Web
                 if (scheme == "http")
                 {
                     context.Request.Scheme = "https";
+                    logger.LogInformation($"Middleware upgrade request: {context.Request.Scheme}://{context.Request.Host}");
                 }
-
-                logger.LogInformation($"Middleware: {context.Request.Scheme}://{context.Request.Host}");
-
 
                 // Call the next delegate/middleware in the pipeline
                 await next();

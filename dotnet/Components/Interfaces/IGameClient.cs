@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using TeamHitori.Mulplay.Container.Web.Documents.Game;
 
 namespace TeamHitori.Mulplay.Container.Web.Components.Interfaces
 {
@@ -14,6 +12,7 @@ namespace TeamHitori.Mulplay.Container.Web.Components.Interfaces
         Task OnGameEnd(string content);
         Task OnStep(string content);
         Task OnNotifyReload();
+        Task OnNotifyCompilation(CompilationStatus status);
         Task OnNotifyPublishedGameEvent();
         Task OnActivePlayerChange(int count);
     }

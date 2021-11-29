@@ -14,6 +14,7 @@ using TeamHitori.Mulplay.Container.Web.Documents.Game;
 using TeamHitori.Mulplay.Container.Web.Components;
 using TeamHitori.Mulplay.Container.Web.Components.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using TeamHitori.Mulplay.Container.Web.Documents.v2.Game;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -28,18 +29,21 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
         private readonly GameContainer _gameHub;
         private readonly IStorageConfig _storageConfig;
         private GameContainer _gameContainer;
+        private readonly IHttpService _httpService;
 
         public EditorApiController(
             ILogger<EditorApiController> logger,
             GameContainer gameHub,
             IStorageConfig storageConfig,
-            GameContainer gameContainer
+            GameContainer gameContainer,
+            IHttpService httpService
             )
         {
             _logger = logger;
             _gameHub = gameHub;
             this._storageConfig = storageConfig;
             _gameContainer = gameContainer;
+            this._httpService = httpService;
         }
 
         [HttpGet("create-game/{gameName}")]
@@ -54,7 +58,7 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
                 var storage = _storageConfig.ToUserStorage(HttpContext);
                 var storagePublish = _storageConfig.ToUserStorage($"{userName}:{gameName}");
 
-                storage.LogDebug("Game Start Called");
+                storage.LogDebug("create-game Called");
 
                 var gameDefinition = await GameDefinitionExtensions.GetLatest(storage, storagePublish, gameName);
 
@@ -64,7 +68,7 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
 
                 await _gameContainer.CreateGame(gameInstance, gameDefinition);
 
-                await _gameContainer.NotifyReload(gameInstance.gameName);
+                //await _gameContainer.NotifyReload(gameInstance.gameName);
 
                 var res = gamePrimaryName.ToJDoc().content;
 
@@ -75,6 +79,14 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
                 _logger.LogError(ex.Message);
                 return null;
             }
+        }
+
+        [HttpGet("destroy-game/{gamePrimaryName}")]
+        public async Task destroyGame(string gamePrimaryName)
+        {
+            _logger.LogInformation($"Stop {gamePrimaryName}");
+
+            await _gameContainer.DestroyGame(gamePrimaryName);
         }
 
         [HttpPost("upsert-config/{gameName}")]
@@ -89,7 +101,6 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
                 // primaryNameIn - case insensitive
                 await storage.Upsert(gameConfig, primaryNameIN: gameName);
 
-
                 return true;
             }
             catch (Exception ex)
@@ -100,19 +111,37 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
             return false;
         }
 
-        [HttpPost("upsert-logic")]
-        public async Task<bool> UpsertLogic([FromBody] GameLogic gameLogic)
+        //[HttpPost("poll-code")]
+        //public async Task<bool> PollCode([FromBody] IEnumerable<CodeFile> codeFiles)
+        //{ 
+        
+        //}
+
+        [HttpPost("upsert-code")]
+        public async Task<bool> UpsertCode([FromBody] IEnumerable<CodeFile> codeFiles)
         {
+            var userName = User.Identity.Name.ToLower();
             var storage = _storageConfig.ToUserStorage(HttpContext);
 
-            storage.LogDebug($"Upsert Logic {gameLogic} Called");
+            storage.LogDebug($"Upsert Logic  Called");
 
             try
             {
-                // primaryNameIn - case insensitive
-                await storage.Upsert(gameLogic, primaryNameIN: $"{gameLogic.gameName}:{gameLogic.logicType}");
+                foreach (var codeFile in codeFiles)
+                {
+                    // primaryNameIn - case insensitive
+                    await storage.Upsert(codeFile, primaryNameIN: $"{codeFile.gameName}:{codeFile.fileName}");
+                }
 
-                await _gameContainer.NotifyReload(gameLogic.gameName);
+                if (codeFiles.Any())
+                {
+                    var body = codeFiles.ToDictionary(key => $"{key.fileName}", val => $"{val.code}");
+                    var bodyStr = body.ToJDoc().content;
+
+                    _gameContainer.StartCompile(storage.UserId, userName, codeFiles.First().gameName, bodyStr); // UrlPostType<object>(HttpContext, $"http://mulplay-container-build/set/{storage.UserId}", bodyStr, 0);
+                }
+
+                //await _gameContainer.NotifyReload(gameLogic.gameName);
 
                 return true;
             }
@@ -123,6 +152,30 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
 
             return false;
         }
+
+        //[HttpPost("upsert-logic")]
+        //public async Task<bool> UpsertLogic([FromBody] CodeFile codeFile)
+        //{
+        //    var storage = _storageConfig.ToUserStorage(HttpContext);
+
+        //    storage.LogDebug($"Upsert Logic {codeFile.fileName} Called");
+
+        //    try
+        //    {
+        //        // primaryNameIn - case insensitive
+        //        await storage.Upsert(codeFile, primaryNameIN: $"{codeFile.gameName}:{codeFile.fileName}");
+
+        //        //await _gameContainer.NotifyReload(gameLogic.gameName);
+
+        //        return true;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex.Message);
+        //    }
+
+        //    return false;
+        //}
 
         [HttpGet("get-active/{gameName}")]
         public IEnumerable<GameInstance> getActive(string gameName)
@@ -132,13 +185,16 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
 
             var gameInstances = _gameContainer.ActiveGameInstances;
 
-            foreach (var item in gameInstances)
-            {
-                if (item.gameName == $"debug:{userName}:{gameName}")
-                {
-                    yield return item;
-                }
-            }
+            return gameInstances
+                .Where(inst => inst.gameName == $"debug:{userName}:{gameName}");
+
+            //foreach (var item in gameInstances)
+            //{
+            //    if (item.gameName == $"debug:{userName}:{gameName}")
+            //    {
+            //        yield return item;
+            //    }
+            //}
         }
 
         [HttpGet("get-all")]
@@ -151,6 +207,20 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
             var gameDefs = await storage.FindAllByType<GameConfig>();
 
             return gameDefs.Select(x => x.primaryName);
+        }
+
+        [HttpGet("get-compiled-fe/{gameName}")]
+        public async Task<string> getCompiledFE(string gameName)
+        {
+            // To lower
+            var userName = User.Identity.Name.ToLower();
+            gameName = gameName.ToLower();
+
+            var storage = _storageConfig.ToUserStorage(HttpContext);
+
+            var compiledFE = await storage.GetFECode(gameName);
+
+            return compiledFE.code.ToJDoc().content;
         }
 
         [HttpGet("get-definition/{gameName}")]
@@ -190,13 +260,13 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
         }
 
         [HttpGet("get-logic/{gameName}/{logicType}")]
-        public async Task<GameLogic> getLogic(string gameName, LogicType logicType)
+        public async Task<CompiledCode> getLogic(string gameName, CodeType logicType)
         {
             var storage = _storageConfig.ToUserStorage(HttpContext);
 
             storage.LogDebug("Game Get Called");
 
-            var gameLogicDoc = await storage.FindDocumentByPrimaryName<GameLogic>($"{gameName}:{logicType}");
+            var gameLogicDoc = await storage.FindDocumentByPrimaryName<CompiledCode>($"{gameName}:{logicType}");
             var gameLogic = gameLogicDoc?.GetObject();
 
             return gameLogic;
@@ -251,7 +321,10 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
             storage.LogDebug("Game Get Called");
 
             var gameDefinition = await GameDefinitionExtensions.GetLatest(storage, storagePublish, gameName);
-            var publishProfile = new PublishProfile(gameDefinition, userName, "0.0.0.0", DateTime.Now, false);
+            var compiledFE = await storage.GetFECode(gameName);
+            var compiledBE = await storage.GetBECode(gameName);
+
+            var publishProfile = new PublishProfile(gameDefinition, compiledFE.code, compiledBE.code, userName, "0.0.0.0", DateTime.Now, false);
 
             await storagePublish.Upsert(publishProfile, true);
 
@@ -272,7 +345,7 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
 
                 await _gameContainer.CreateGame(activeInstance, publishProfile.gameDefinition);
 
-                await _gameContainer.EnableDebug($"{userName}:{gameName}", publishProfile.debugEnabled);
+                //await _gameContainer.EnableDebug($"{userName}:{gameName}", publishProfile.debugEnabled);
             }
 
             return true;
@@ -291,8 +364,10 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
             storage.LogDebug("Game Get Called");
 
             var gameDefinition = await GameDefinitionExtensions.GetLatest(storage, storagePublish, gameName);
+            var compiledFE = await storage.GetFECode(gameName);
+            var compiledBE = await storage.GetBECode(gameName);
 
-            var publishProfile = new PublishProfile(gameDefinition, userName, "0.0.0.0", DateTime.Now, false);
+            var publishProfile = new PublishProfile(gameDefinition, compiledFE.code, compiledBE.code, userName, "0.0.0.0", DateTime.Now, false);
 
             var doc = storagePublish.CreateSingleton(publishProfile);
 
@@ -320,7 +395,7 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
 
             await storagePublish.Upsert(publishProfile with { debugEnabled = enable }, true);
 
-           await  _gameContainer.EnableDebug($"{userName}:{gameName}", enable);
+            // await  _gameContainer.EnableDebug($"{userName}:{gameName}", enable);
         }
 
         [HttpGet("game-action/{gameName}/{start}/{stop}")]
@@ -356,7 +431,10 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
                 var gamePrimaryName = Guid.NewGuid().ToString();
 
                 var gameDefinition = await GameDefinitionExtensions.GetLatest(storage, storagePublish, gameName);
-                publishProfile = new PublishProfile(gameDefinition, userName, "0.0.0.0", DateTime.Now, false);
+                var compiledFE = await storage.GetFECode(gameName);
+                var compiledBE = await storage.GetBECode(gameName);
+
+                publishProfile = new PublishProfile(gameDefinition, compiledFE.code, compiledBE.code, userName, "0.0.0.0", DateTime.Now, false);
 
                 await storagePublish.Upsert(publishProfile, true);
 
@@ -364,8 +442,9 @@ namespace TeamHitori.Mulplay.Container.Web.Controllers
 
                 await _gameContainer.CreateGame(activeInstance, publishProfile.gameDefinition);
 
-                await _gameContainer.EnableDebug($"{userName}:{gameName}", publishProfile.debugEnabled);
+                //await _gameContainer.EnableDebug($"{userName}:{gameName}", publishProfile.debugEnabled);
             }
         }
+
     }
 }
